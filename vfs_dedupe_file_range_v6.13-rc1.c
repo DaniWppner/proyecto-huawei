@@ -79,3 +79,64 @@ int vfs_dedupe_file_range(struct file *file, struct file_dedupe_range *same)
     return ret;
 }
 EXPORT_SYMBOL(vfs_dedupe_file_range);
+
+loff_t vfs_dedupe_file_range_one(struct file *src_file, loff_t src_pos,
+                                 struct file *dst_file, loff_t dst_pos,
+                                 loff_t len, unsigned int remap_flags)
+{
+    loff_t ret;
+
+    WARN_ON_ONCE(remap_flags & ~(REMAP_FILE_DEDUP |
+                                 REMAP_FILE_CAN_SHORTEN));
+
+    /*
+     * This is redundant if called from vfs_dedupe_file_range(), but other
+     * callers need it and it's not performance sesitive...
+     */
+    ret = remap_verify_area(src_file, src_pos, len, false);
+    if (ret)
+        return ret;
+
+    ret = remap_verify_area(dst_file, dst_pos, len, true);
+    if (ret)
+        return ret;
+
+    /*
+     * This needs to be called after remap_verify_area() because of
+     * sb_start_write() and before may_dedupe_file() because the mount's
+     * MAY_WRITE need to be checked with mnt_get_write_access_file() held.
+     */
+    ret = mnt_want_write_file(dst_file);
+    if (ret)
+        return ret;
+
+    ret = -EPERM;
+    if (!may_dedupe_file(dst_file)) // This is a permission check
+        goto out_drop_write;
+
+    ret = -EXDEV;
+    if (file_inode(src_file)->i_sb != file_inode(dst_file)->i_sb)
+        goto out_drop_write;
+
+    ret = -EISDIR;
+    if (S_ISDIR(file_inode(dst_file)->i_mode))
+        goto out_drop_write;
+
+    ret = -EINVAL;
+    if (!dst_file->f_op->remap_file_range) // This replaces the privileged function of v4.18
+        goto out_drop_write;
+
+    if (len == 0)
+    {
+        ret = 0;
+        goto out_drop_write;
+    }
+
+    ret = dst_file->f_op->remap_file_range(src_file, src_pos, dst_file,
+                                           dst_pos, len, remap_flags | REMAP_FILE_DEDUP);
+out_drop_write:
+    mnt_drop_write_file(dst_file);
+
+    return ret;
+}
+EXPORT_SYMBOL(vfs_dedupe_file_range_one);
