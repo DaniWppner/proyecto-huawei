@@ -28,3 +28,17 @@ extract-bc vmlinux
 ```
 
 ## Run the ACHyB static analysis
+
+1. Copy the bitcode file to the achyb directory tree
+```bash
+mkdir achyb/static/linux
+cp linux/vmlinux.bc achyb/static/linux
+```
+
+2. Build and run the static analysis
+```bash
+(inside the docker container)
+cd achyb/static
+./build.sh build
+./run.sh
+```

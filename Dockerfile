@@ -12,7 +12,8 @@ WORKDIR /usr/local/clang+llvm
 RUN wget --no-verbose --show-progress --progress=bar:force:noscroll --no-check-certificate \
     https://releases.llvm.org/9.0.0/clang+llvm-9.0.0-x86_64-pc-linux-gnu.tar.xz 
 RUN tar -xvf clang+llvm-9.0.0-x86_64-pc-linux-gnu.tar.xz; \
-    rm clang+llvm-9.0.0-x86_64-pc-linux-gnu.tar.xz;
+    rm clang+llvm-9.0.0-x86_64-pc-linux-gnu.tar.xz; \
+    ln -s /usr/local/clang+llvm/clang+llvm-9.0.0-x86_64-pc-linux-gnu/bin/opt /usr/local/clang+llvm/clang+llvm-9.0.0-x86_64-pc-linux-gnu/bin/opt-9
 ENV PATH="$PATH:/usr/local/clang+llvm/clang+llvm-9.0.0-x86_64-pc-linux-gnu/bin"
 
 # Install missing z3lib packages for clang
@@ -30,4 +31,4 @@ RUN pip install wllvm
 
 # Install dependencies to compile the linux kernel
 RUN apt-get install -qqy --no-install-recommends \
-    make flex bison libelf-dev libssl-dev gcc bc file
+    make flex bison libelf-dev libssl-dev gcc g++ bc file cmake
