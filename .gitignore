@@ -32,6 +32,9 @@
 *.out
 *.app
 
+# LLVM bitcode
+*.bc
+
 ## Python gitignore
 # Byte-compiled / optimized / DLL files
 __pycache__/
