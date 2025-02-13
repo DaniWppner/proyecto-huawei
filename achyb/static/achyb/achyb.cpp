@@ -11,6 +11,7 @@
 #define WID_KINIT 1
 #define WID_CC 1
 #define WID_PI 1
+#define WID_CONSTRAINT_ANALYSIS_INTERNAL 1
 
 STOP_WATCH(TOTOAL_NUMBER_OF_STOP_WATCHES);
 
@@ -487,9 +488,8 @@ void achyb::collect_kernel_init_functions(Module &module)
   errs() << "Initial Kernel Init Function Count:"
          << kernel_init_functions.size() << "\n";
 
-  Step 2 : over approximate kernel init functions
-           errs()
-           << "Over Approximate Kernel Init Functions\n";
+  // Step 2 : over approximate kernel init functions
+  errs() << "Over Approximate Kernel Init Functions\n";
   STOP_WATCH_START(WID_KINIT);
   FunctionSet func_visited;
   FunctionSet func_work_set;
@@ -1563,7 +1563,7 @@ void achyb::identify_dynamic_kmi(Module &module)
     cnt_resolved++;
     add_function_to_dmi(f, t, inds, dmi);
   }
-  // errs() << "#dyn kmi resolved:" << cnt_resolved << "\n";
+  errs() << "#dyn kmi resolved:" << cnt_resolved << "\n";
 }
 
 void achyb::dump_dkmi()
@@ -3472,6 +3472,7 @@ void achyb::achyb_process(Module &module)
   // exit(0);
 }
 
+// Return a set with all the callsites of a permission check inside f
 CallInstSet achyb::get_guard_callsites(Function *f)
 {
   CallInstSet guard_cis;
@@ -3590,7 +3591,7 @@ void achyb::constraint_analysis(Module &module)
       continue;
     }*/
 
-    // errs() << f->getName() << "\n";
+    errs() << f->getName() << "\n";
     CallInstSet guard_cis = get_guard_callsites(f);
 
     // Yang: debug
@@ -3598,6 +3599,8 @@ void achyb::constraint_analysis(Module &module)
       continue;
     }*/
 
+    // Step 1: Find all call sites of privileged functions in each function
+    // And find the calee (the privileged function) in each such call site.
     for (Function::iterator fi = f->begin(), fe = f->end(); fi != fe; ++fi)
     {
       BasicBlock *bb = dyn_cast<BasicBlock>(fi);
@@ -3654,9 +3657,14 @@ void achyb::constraint_analysis(Module &module)
         }
       }
     }
-    // errs() << f->getName() << " ended\n";
+    errs() << f->getName() << " ended\n";
   }
 
+  errs() << "Functions with call site of privileged function Count:" << ps.size() << "\n";
+  // Step 2: Check that call sites of priviliged function are protected
+  errs() << "Check that call sites of priviliged function are protected\n";
+  uint checked_function_cnt = 1;
+  STOP_WATCH_START(WID_CONSTRAINT_ANALYSIS_INTERNAL);
   std::unordered_map<Function *, Function *> report;
   for (auto pair : ps)
   {
@@ -3668,7 +3676,8 @@ void achyb::constraint_analysis(Module &module)
       auto buggy_func = ci->getParent()->getParent();
       if (report.find(buggy_func) == report.end())
       {
-
+        errs() << "(" << checked_function_cnt << ") Check function " << buggy_func->getName() << "\n";
+        checked_function_cnt++;
         // Yang: TODO: check if their callers are protected
         FunctionSet func_visited;
         bool is_caller_protected = true;
@@ -3739,8 +3748,10 @@ void achyb::constraint_analysis(Module &module)
       }
     }
   }
+  STOP_WATCH_STOP(WID_CONSTRAINT_ANALYSIS_INTERNAL);
+  STOP_WATCH_REPORT(WID_CONSTRAINT_ANALYSIS_INTERNAL)
 
-  // errs() << "Results:\n";
+  errs() << "Results:\n";
   for (auto pair : report)
   {
     auto buggy_func = pair.first;
