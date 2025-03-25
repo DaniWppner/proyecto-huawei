@@ -3761,7 +3761,7 @@ void achyb::constraint_analysis(Module &module)
         }
         // report[buggy_func] = f;
         //Debug 
-        errs << "(" << checked_call_site_cnt << ") ended\n";
+        errs() << "(" << checked_call_site_cnt << ") ended\n";
       }
     }
   }
