@@ -1922,6 +1922,8 @@ void achyb::collect_achyb_priv_funcs(Module &module)
               {
                 critical_functions.insert(f_callee);
                 critical_evidences[f_callee] = tmp_ci;
+                // Debug: Who is critical function and what is the evidence
+                errs() << f_callee->getName() << " gated by " << f_target->getName() << " inside " << f->getName() << "\n";
               }
             }
             else
@@ -1934,6 +1936,8 @@ void achyb::collect_achyb_priv_funcs(Module &module)
                 {
                   critical_functions.insert(f_indirect_callee);
                   critical_evidences[f_indirect_callee] = tmp_ci;
+                  // Debug: Who is critical function and what is the evidence
+                  errs() << f_indirect_callee->getName() << " gated by " << f_target->getName() << " inside " << f->getName() << "\n";
                 }
               }
             }
@@ -1947,10 +1951,11 @@ void achyb::collect_achyb_priv_funcs(Module &module)
   }
 
   // Debug
-  for (auto f : critical_functions)
+  // Commented out because its redundant with the debug inside the for loop
+  /*for (auto f : critical_functions)
   {
     errs() << f->getName() << "\n";
-  }
+  }*/
 
   errs() << "priv_func_num=" << critical_functions.size() << "\n";
 }
@@ -2094,6 +2099,8 @@ CallInstSet achyb::dependence_analysis(CallInst *ci)
   return cis;
 }
 
+// Get the set of call sites "dominated" by one branch that is a user of ci in the def-use chain.
+// Params: ci is the call site of a gating function
 CallInstSet achyb::strict_dependence_analysis(CallInst *ci)
 {
   // errs() << "DEBUG:\n" << *ci << "\n";
@@ -3472,7 +3479,7 @@ void achyb::achyb_process(Module &module)
   // exit(0);
 }
 
-// Return a set with all the callsites of a permission check inside f
+// Return a set with all the guarded call sites by any of the permission checks inside f
 CallInstSet achyb::get_guard_callsites(Function *f)
 {
   CallInstSet guard_cis;
@@ -3506,6 +3513,7 @@ CallInstSet achyb::get_guard_callsites(Function *f)
   return guard_cis;
 }
 
+// Return a list of all the call sites of the function f_def
 CallInstSet achyb::get_caller_callsites(Module &module, Function *f_def)
 {
   CallInstSet cis;
@@ -3591,7 +3599,7 @@ void achyb::constraint_analysis(Module &module)
       continue;
     }*/
 
-    errs() << f->getName() << "\n";
+    // errs() << f->getName() << "\n";
     CallInstSet guard_cis = get_guard_callsites(f);
 
     // Yang: debug
@@ -3657,13 +3665,13 @@ void achyb::constraint_analysis(Module &module)
         }
       }
     }
-    errs() << f->getName() << " ended\n";
+    //errs() << f->getName() << " ended\n";
   }
 
   errs() << "Functions with call site of privileged function Count:" << ps.size() << "\n";
   // Step 2: Check that call sites of priviliged function are protected
   errs() << "Check that call sites of priviliged function are protected\n";
-  uint checked_function_cnt = 1;
+  uint checked_call_site_cnt = 1;
   STOP_WATCH_START(WID_CONSTRAINT_ANALYSIS_INTERNAL);
   std::unordered_map<Function *, Function *> report;
   for (auto pair : ps)
@@ -3676,8 +3684,10 @@ void achyb::constraint_analysis(Module &module)
       auto buggy_func = ci->getParent()->getParent();
       if (report.find(buggy_func) == report.end())
       {
-        errs() << "(" << checked_function_cnt << ") Check function " << buggy_func->getName() << "\n";
-        checked_function_cnt++;
+        // Debug: report current call site of critical function being checked
+        errs() << "(" << checked_call_site_cnt << ") Check call site of " << f->getName() << " in " << buggy_func->getName() << "\n";
+        checked_call_site_cnt++;
+
         // Yang: TODO: check if their callers are protected
         FunctionSet func_visited;
         bool is_caller_protected = true;
@@ -3724,6 +3734,9 @@ void achyb::constraint_analysis(Module &module)
             {
               upc_set.insert(caller_ci);
               break;
+            }else{
+              //Debug: Since the end result is going to tell us if the call site is completely unprotected, lets also print the protected call sites 
+              errs() << "Found protected call site of " << curr_upf->getName() << " in " << caller_func->getName() << "\n";
             }
           }
 
@@ -3743,8 +3756,12 @@ void achyb::constraint_analysis(Module &module)
         if (!is_caller_protected)
         {
           report[buggy_func] = f;
+        }else{
+
         }
         // report[buggy_func] = f;
+        //Debug 
+        errs << "(" << checked_call_site_cnt << ") ended\n";
       }
     }
   }
