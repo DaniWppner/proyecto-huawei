@@ -3749,8 +3749,8 @@ void achyb::constraint_analysis(Module &module)
           {
             auto caller_func = caller_ci->getParent()->getParent();
             // Debug: Explain who are the parents of this function
-            errs() << "Check if call site of " << curr_upf->getName() << " in " << caller_func->getName() << " is gated\n"
-            auto caller_guard_cis = get_guard_callsites(caller_func);
+            errs() << "Check if call site of " << curr_upf->getName() << " in " << caller_func->getName() << " is gated\n";
+            CallInstSet caller_guard_cis = get_guard_callsites(caller_func);
             if (caller_guard_cis.find(caller_ci) == caller_guard_cis.end())
             {
               // Debug: show each unprotected call site for extra information
