@@ -3642,7 +3642,7 @@ void achyb::constraint_analysis(Module &module)
             ps[f_callee] += 1;
             pv[f_callee] = ci;
             // Debug: report in advance all the found call sites of privileged functions
-            errs() << "privileged function " << f_callee->getName() << " is called directly in " << f->getName();  
+            errs() << "privileged function " << f_callee->getName() << " is called directly in " << f->getName() << "\n";  
           }
         }
         else
@@ -3663,7 +3663,7 @@ void achyb::constraint_analysis(Module &module)
               ps[f_indirect_callee] += 1;
               pv[f_indirect_callee] = ci;
               // Debug: report in advance all the found call sites of privileged functions
-              errs() << "privileged function " << f_callee->getName() << " is called indirectly in " << f->getName();  
+              errs() << "privileged function " << f_callee->getName() << " is called indirectly in " << f->getName() << "\n";  
             }
           }
         }
