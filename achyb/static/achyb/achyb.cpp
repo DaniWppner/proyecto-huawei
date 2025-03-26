@@ -3665,7 +3665,7 @@ void achyb::constraint_analysis(Module &module)
         }
       }
     }
-    //errs() << f->getName() << " ended\n";
+    // errs() << f->getName() << " ended\n";
   }
 
   errs() << "Functions with call site of privileged function Count:" << ps.size() << "\n";
@@ -3682,11 +3682,15 @@ void achyb::constraint_analysis(Module &module)
     { // Yang: cnt == 1
       auto ci = pv[f];
       auto buggy_func = ci->getParent()->getParent();
-      if (report.find(buggy_func) == report.end())
+      // Debug: report current call site of critical function being checked
+      errs() << "(" << checked_call_site_cnt << ") Check call site of " << f->getName() << " in " << buggy_func->getName() << "\n";
+      if (report.find(buggy_func) != report.end())
       {
-        // Debug: report current call site of critical function being checked
-        errs() << "(" << checked_call_site_cnt << ") Check call site of " << f->getName() << " in " << buggy_func->getName() << "\n";
-        checked_call_site_cnt++;
+        // Debug: let us know if we do not have to check this call site
+        errs() << buggy_func->getName() << " has already been reported, skip.\n";
+      }
+      else
+      {
 
         // Yang: TODO: check if their callers are protected
         FunctionSet func_visited;
@@ -3734,8 +3738,10 @@ void achyb::constraint_analysis(Module &module)
             {
               upc_set.insert(caller_ci);
               break;
-            }else{
-              //Debug: Since the end result is going to tell us if the call site is completely unprotected, lets also print the protected call sites 
+            }
+            else
+            {
+              // Debug: Since the end result is going to tell us if the call site is completely unprotected, lets also print the protected call sites
               errs() << "Found protected call site of " << curr_upf->getName() << " in " << caller_func->getName() << "\n";
             }
           }
@@ -3756,13 +3762,15 @@ void achyb::constraint_analysis(Module &module)
         if (!is_caller_protected)
         {
           report[buggy_func] = f;
-        }else{
-
+        }
+        else
+        {
         }
         // report[buggy_func] = f;
-        //Debug 
-        errs() << "(" << checked_call_site_cnt << ") ended\n";
       }
+      // Debug
+      errs() << "(" << checked_call_site_cnt << ") end.\n";
+      checked_call_site_cnt++;
     }
   }
   STOP_WATCH_STOP(WID_CONSTRAINT_ANALYSIS_INTERNAL);
