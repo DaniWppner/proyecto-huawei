@@ -3641,6 +3641,8 @@ void achyb::constraint_analysis(Module &module)
 
             ps[f_callee] += 1;
             pv[f_callee] = ci;
+            // Debug: report in advance all the found call sites of privileged functions
+            errs() << "privileged function " << f_callee->getName() << " is called directly in " << f->getName();  
           }
         }
         else
@@ -3660,6 +3662,8 @@ void achyb::constraint_analysis(Module &module)
               }
               ps[f_indirect_callee] += 1;
               pv[f_indirect_callee] = ci;
+              // Debug: report in advance all the found call sites of privileged functions
+              errs() << "privileged function " << f_callee->getName() << " is called indirectly in " << f->getName();  
             }
           }
         }
@@ -3668,7 +3672,7 @@ void achyb::constraint_analysis(Module &module)
     // errs() << f->getName() << " ended\n";
   }
 
-  errs() << "Functions with call site of privileged function Count:" << ps.size() << "\n";
+  errs() << "Functions with call site of privileged function Count: " << ps.size() << "\n";
   // Step 2: Check that call sites of priviliged function are protected
   errs() << "Check that call sites of priviliged function are protected\n";
   uint checked_call_site_cnt = 1;
@@ -3701,10 +3705,19 @@ void achyb::constraint_analysis(Module &module)
         int t = 0;
         while (upf_queue.size() > 0)
         {
-          auto curr_upf = *upf_queue.begin();
+          Function *curr_upf = *upf_queue.begin();
           upf_queue.pop_front();
+          
+          // Debug: Explain the call tree as it unfolds
+          errs() << "Check " << curr_upf->getName() << "\n";
 
-          auto caller_cis = get_caller_callsites(module, curr_upf);
+          CallInstSet caller_cis = get_caller_callsites(module, curr_upf);
+          
+          // Debug: Explain who are the parents of this function
+          errs() << curr_upf->getName() << " is called on " << caller_cis.size() << " sites\n";
+          for (auto caller_ci : caller_cis){
+            errs() << "\t" << caller_ci->getParent()->getParent()->getName() << "\n";
+          }
 
           if (caller_cis.size() == 0)
           {
@@ -3724,6 +3737,8 @@ void achyb::constraint_analysis(Module &module)
 
           if (t > 2)
           {
+            // Debug: explain max height has been reached
+            errs() << "Maximum height reached in the call tree. Reporting original function.\n";
             is_caller_protected = false;
             break;
           }
@@ -3733,16 +3748,20 @@ void achyb::constraint_analysis(Module &module)
           for (auto caller_ci : caller_cis)
           {
             auto caller_func = caller_ci->getParent()->getParent();
+            // Debug: Explain who are the parents of this function
+            errs() << "Check if call site of " << curr_upf->getName() << " in " << caller_func->getName() << " is gated\n"
             auto caller_guard_cis = get_guard_callsites(caller_func);
             if (caller_guard_cis.find(caller_ci) == caller_guard_cis.end())
             {
+              // Debug: show each unprotected call site for extra information
+              errs() << "Found unprotected call site of " << curr_upf->getName() << " in " << caller_func->getName() << "\n";
               upc_set.insert(caller_ci);
               break;
             }
             else
             {
               // Debug: Since the end result is going to tell us if the call site is completely unprotected, lets also print the protected call sites
-              errs() << "Found protected call site of " << curr_upf->getName() << " in " << caller_func->getName() << "\n";
+              errs() << "Found gated call site of " << curr_upf->getName() << " in " << caller_func->getName() << "\n";
             }
           }
 
@@ -3751,9 +3770,12 @@ void achyb::constraint_analysis(Module &module)
             auto ucf = upc->getParent()->getParent();
             if (func_visited.find(ucf) != func_visited.end())
             {
+              // Debug: Explain whether we need to recur on ucf or not
+              errs() << ucf->getName() << " has been visited already, skip\n";
               continue;
             }
-
+            // Debug: Explain whether we need to recur on ucf or not
+            errs() << "Add " << ucf->getName() << " to the queue\n";
             func_visited.insert(curr_upf);
             upf_queue.push_back(ucf);
           }
