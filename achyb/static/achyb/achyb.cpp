@@ -1923,7 +1923,7 @@ void achyb::collect_achyb_priv_funcs(Module &module)
                 critical_functions.insert(f_callee);
                 critical_evidences[f_callee] = tmp_ci;
                 // Debug: Who is critical function and what is the evidence
-                errs() << f_callee->getName() << " gated by " << f_target->getName() << " inside " << f->getName() << "\n";
+                errs() << "Direct call to " << f_callee->getName() << " gated by " << f_target->getName() << " inside " << f->getName() << "\n";
               }
             }
             else
@@ -1937,7 +1937,7 @@ void achyb::collect_achyb_priv_funcs(Module &module)
                   critical_functions.insert(f_indirect_callee);
                   critical_evidences[f_indirect_callee] = tmp_ci;
                   // Debug: Who is critical function and what is the evidence
-                  errs() << f_indirect_callee->getName() << " gated by " << f_target->getName() << " inside " << f->getName() << "\n";
+                  errs() << "Indirect call to " << f_indirect_callee->getName() << " gated by " << f_target->getName() << " inside " << f->getName() << "\n";
                 }
               }
             }
