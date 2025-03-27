@@ -3758,7 +3758,6 @@ void achyb::constraint_analysis(Module &module)
               // Debug: show each unprotected call site for extra information
               errs() << "Found unprotected call site of " << curr_upf->getName() << " in " << caller_func->getName() << "\n";
               upc_set.insert(caller_ci);
-              break;
             }
             else
             {
