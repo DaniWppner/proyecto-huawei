@@ -3699,14 +3699,14 @@ void achyb::constraint_analysis(Module &module)
         // Yang: TODO: check if their callers are protected
         FunctionSet func_visited;
         bool is_caller_protected = true;
-        std::list<Function *> upf_queue;
-        upf_queue.push_back(buggy_func);
+        std::list<Function *> upf_fifo_queue;
+        upf_fifo_queue.push_back(buggy_func);
 
         int t = 0;
-        while (upf_queue.size() > 0)
+        while (upf_fifo_queue.size() > 0)
         {
-          Function *curr_upf = *upf_queue.begin();
-          upf_queue.pop_front();
+          Function *curr_upf = *upf_fifo_queue.begin();
+          upf_fifo_queue.pop_front();
           
           // Debug: Explain the call tree as it unfolds
           errs() << "Check " << curr_upf->getName() << "\n";
@@ -3725,6 +3725,8 @@ void achyb::constraint_analysis(Module &module)
             if (curr_upf->getName().find("__se_sys_") != StringRef::npos ||
                 curr_upf->getName().find("__se_compat_") != StringRef::npos)
             {
+              // Debug: explain curr_upf is a known entry point
+              errs() << " __se_sys_ or __se_compat_ included in the name of " << curr_upf->getName() << ". Reporting " << buggy_func->getName() << ".\n";
               is_caller_protected = false;
               // errs() << "call begin: " << curr_upf->getName() << "\n";
               // break;
@@ -3738,7 +3740,7 @@ void achyb::constraint_analysis(Module &module)
           if (t > 2)
           {
             // Debug: explain max height has been reached
-            errs() << "Maximum height reached in the call tree. Reporting original function.\n";
+            errs() << "Maximum height reached in the call tree. Reporting " << buggy_func->getName() <<".\n";
             is_caller_protected = false;
             break;
           }
@@ -3775,9 +3777,9 @@ void achyb::constraint_analysis(Module &module)
               continue;
             }
             // Debug: Explain whether we need to recur on ucf or not
-            errs() << "Add " << ucf->getName() << " to the queue\n";
+            errs() << "Add " << ucf->getName() << " to the fifo queue\n";
             func_visited.insert(curr_upf);
-            upf_queue.push_back(ucf);
+            upf_fifo_queue.push_back(ucf);
           }
         }
 
@@ -3785,10 +3787,6 @@ void achyb::constraint_analysis(Module &module)
         {
           report[buggy_func] = f;
         }
-        else
-        {
-        }
-        // report[buggy_func] = f;
       }
       // Debug
       errs() << "(" << checked_call_site_cnt << ") end.\n";
