@@ -98,7 +98,6 @@ private:
   // Yang:
   void collect_achyb_priv_funcs(Module &module);
   CallInstSet dependence_analysis(CallInst*);
-  CallInstSet strict_dependence_analysis(CallInst*);
   FunctionSet get_call_tree(CallInst*);
   void rewrite_for_constraints(Module &module);
   void constraint_analysis(Module &module);

@@ -1960,148 +1960,9 @@ void achyb::collect_achyb_priv_funcs(Module &module)
   errs() << "priv_func_num=" << critical_functions.size() << "\n";
 }
 
-CallInstSet achyb::dependence_analysis(CallInst *ci)
-{
-  // errs() << "DEBUG:\n" << *ci << "\n";
-  auto f = ci->getParent()->getParent();
-
-  std::unordered_set<BranchInst *> branches;
-
-  InstructionList queue;
-  InstructionSet visited;
-  queue.push_back(ci);
-  while (queue.size() > 0)
-  {
-    auto inst = *queue.begin();
-    queue.pop_front();
-
-    for (auto user : inst->users())
-    {
-      auto curr_inst = dyn_cast<Instruction>(user);
-      if (curr_inst)
-      {
-        if (visited.find(curr_inst) == visited.end())
-        {
-          // Debug
-          // errs() << *curr_inst << "\n";
-
-          visited.insert(curr_inst);
-          auto curr_branch_inst = dyn_cast<BranchInst>(curr_inst);
-          if (curr_branch_inst)
-          {
-            branches.insert(curr_branch_inst);
-          }
-          queue.push_back(curr_inst);
-        }
-      }
-    }
-  }
-
-  // Yang: blocl-level dominate analysis
-  CallInstSet cis;
-  BasicBlockSet dominated;
-  for (auto b_inst : branches)
-  {
-    std::vector<BasicBlockSet> dominated_lst;
-    for (auto bb : b_inst->successors())
-    {
-      auto branch_block = bb->getUniquePredecessor();
-      if (branch_block)
-      { // bb->getUniquePredecessor() != nullptr
-        BasicBlockSet one_dominated;
-
-        one_dominated.insert(bb);
-
-        bool is_loop = true;
-        while (is_loop)
-        {
-          is_loop = false;
-          for (Function::iterator fi = f->begin(), fe = f->end(); fi != fe; ++fi)
-          {
-            BasicBlock *bb = dyn_cast<BasicBlock>(fi);
-            if (one_dominated.find(bb) == one_dominated.end())
-            {
-              bool is_dominated = true;
-              bool is_empty = true;
-              for (auto pred_bb : predecessors(bb))
-              {
-                is_empty = false;
-                if (one_dominated.find(pred_bb) == one_dominated.end())
-                {
-                  is_dominated = false;
-                  break;
-                }
-              }
-
-              if (is_empty)
-              {
-                is_dominated = false;
-              }
-
-              if (is_dominated)
-              {
-                one_dominated.insert(bb);
-                is_loop = true;
-                break;
-              }
-            }
-          }
-        }
-
-        dominated_lst.push_back(one_dominated);
-      }
-    }
-
-    for (int i = 0; i < dominated_lst.size(); i++)
-    {
-      auto &one_dominated = dominated_lst[i];
-      for (auto bb : one_dominated)
-      {
-        bool is_repeated = false;
-        for (int j = 0; j < dominated_lst.size(); j++)
-        {
-          if (i == j)
-          {
-            continue;
-          }
-
-          auto &two_dominated = dominated_lst[j];
-          if (two_dominated.find(bb) != two_dominated.end())
-          {
-            is_repeated = true;
-            break;
-          }
-        }
-
-        if (!is_repeated)
-        {
-          dominated.insert(bb);
-        }
-      }
-    }
-
-    // dominated.insert(one_dominated.begin(), one_dominated.end());
-  }
-
-  for (auto bb : dominated)
-  {
-    for (BasicBlock::iterator ii = bb->begin(), ie = bb->end(); ii != ie; ++ii)
-    {
-      CallInst *ci = dyn_cast<CallInst>(ii);
-      if (!ci)
-      {
-        continue;
-      }
-      cis.insert(ci);
-    }
-  }
-
-  return cis;
-}
-
 // Get the set of call sites "dominated" by one branch that is a user of ci in the def-use chain.
 // Params: ci is the call site of a gating function
-CallInstSet achyb::strict_dependence_analysis(CallInst *ci)
+CallInstSet achyb::dependence_analysis(CallInst *ci)
 {
   // errs() << "DEBUG:\n" << *ci << "\n";
   std::unordered_set<BranchInst *> branches;
@@ -3504,7 +3365,7 @@ CallInstSet achyb::get_guard_callsites(Function *f)
       {
         // Debug
         // errs() << "dependence\n";
-        CallInstSet cis = strict_dependence_analysis(ci);
+        CallInstSet cis = dependence_analysis(ci);
         guard_cis.insert(cis.begin(), cis.end());
       }
     }
