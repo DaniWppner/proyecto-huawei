@@ -3443,6 +3443,97 @@ CallInstSet achyb::get_caller_callsites(Module &module, Function *f_def)
   return cis;
 }
 
+bool achyb::check_protected_by_callers(Module &module, Function *buggy_func)
+{
+  // Yang: TODO: check if their callers are protected
+  FunctionSet func_visited;
+  bool is_caller_protected = true;
+  std::list<Function *> upf_fifo_queue;
+  upf_fifo_queue.push_back(buggy_func);
+
+  int t = 0;
+  while (upf_fifo_queue.size() > 0)
+  {
+    Function *curr_upf = *upf_fifo_queue.begin();
+    upf_fifo_queue.pop_front();
+
+    // Debug: Explain the call tree as it unfolds
+    errs() << "Check " << curr_upf->getName() << "\n";
+
+    CallInstSet caller_cis = get_caller_callsites(module, curr_upf);
+
+    // Debug: Explain who are the parents of this function
+    errs() << curr_upf->getName() << " is called on " << caller_cis.size() << " sites\n";
+    for (auto caller_ci : caller_cis)
+    {
+      errs() << "\t" << caller_ci->getParent()->getParent()->getName() << "\n";
+    }
+
+    if (caller_cis.size() == 0)
+    {
+
+      if (curr_upf->getName().find("__se_sys_") != StringRef::npos ||
+          curr_upf->getName().find("__se_compat_") != StringRef::npos)
+      {
+        // Debug: explain curr_upf is a known entry point
+        errs() << " __se_sys_ or __se_compat_ included in the name of " << curr_upf->getName() << "\n";
+        is_caller_protected = false;
+        // errs() << "call begin: " << curr_upf->getName() << "\n";
+        // break;
+      }
+
+      // is_caller_protected = false;
+      // errs() << "call begin: " << curr_upf->getName() << "\n";
+      break;
+    }
+
+    if (t > 2)
+    {
+      // Debug: explain max height has been reached
+      errs() << "Maximum height reached in the call tree \n";
+      is_caller_protected = false;
+      break;
+    }
+    t += 1;
+
+    CallInstSet upc_set;
+    for (auto caller_ci : caller_cis)
+    {
+      auto caller_func = caller_ci->getParent()->getParent();
+      // Debug: Explain who are the parents of this function
+      errs() << "Check if call site of " << curr_upf->getName() << " in " << caller_func->getName() << " is gated\n";
+      CallInstSet caller_guard_cis = get_guard_callsites(caller_func);
+      if (caller_guard_cis.find(caller_ci) == caller_guard_cis.end())
+      {
+        // Debug: show each unprotected call site for extra information
+        errs() << "Found unprotected call site of " << curr_upf->getName() << " in " << caller_func->getName() << "\n";
+        upc_set.insert(caller_ci);
+      }
+      else
+      {
+        // Debug: Since the end result is going to tell us if the call site is completely unprotected, lets also print the protected call sites
+        errs() << "Found gated call site of " << curr_upf->getName() << " in " << caller_func->getName() << "\n";
+      }
+    }
+
+    for (auto upc : upc_set)
+    {
+      auto ucf = upc->getParent()->getParent();
+      if (func_visited.find(ucf) != func_visited.end())
+      {
+        // Debug: Explain whether we need to recur on ucf or not
+        errs() << ucf->getName() << " has been visited already, skip\n";
+        continue;
+      }
+      // Debug: Explain whether we need to recur on ucf or not
+      errs() << "Add " << ucf->getName() << " to the fifo queue\n";
+      func_visited.insert(curr_upf);
+      upf_fifo_queue.push_back(ucf);
+    }
+  }
+  return is_caller_protected;
+}
+
 void achyb::constraint_analysis(Module &module)
 {
   std::unordered_map<Function *, int> ps;
@@ -3503,7 +3594,7 @@ void achyb::constraint_analysis(Module &module)
             ps[f_callee] += 1;
             pv[f_callee] = ci;
             // Debug: report in advance all the found call sites of privileged functions
-            errs() << "privileged function " << f_callee->getName() << " is called directly in " << f->getName() << "\n";  
+            errs() << "privileged function " << f_callee->getName() << " is called directly in " << f->getName() << "\n";
           }
         }
         else
@@ -3524,7 +3615,7 @@ void achyb::constraint_analysis(Module &module)
               ps[f_indirect_callee] += 1;
               pv[f_indirect_callee] = ci;
               // Debug: report in advance all the found call sites of privileged functions
-              errs() << "privileged function " << f_indirect_callee->getName() << " is called indirectly in " << f->getName() << "\n";  
+              errs() << "privileged function " << f_indirect_callee->getName() << " is called indirectly in " << f->getName() << "\n";
             }
           }
         }
@@ -3541,12 +3632,12 @@ void achyb::constraint_analysis(Module &module)
   std::unordered_map<Function *, Function *> report;
   for (auto pair : ps)
   {
-    auto f = pair.first;
-    auto cnt = pair.second;
+    Function *f = pair.first;
+    int cnt = pair.second;
     if (cnt >= 1)
     { // Yang: cnt == 1
-      auto ci = pv[f];
-      auto buggy_func = ci->getParent()->getParent();
+      CallInst *ci = pv[f];
+      Function *buggy_func = ci->getParent()->getParent();
       // Debug: report current call site of critical function being checked
       errs() << "(" << checked_call_site_cnt << ") Check call site of " << f->getName() << " in " << buggy_func->getName() << "\n";
       if (report.find(buggy_func) != report.end())
@@ -3556,95 +3647,25 @@ void achyb::constraint_analysis(Module &module)
       }
       else
       {
+        bool is_protected = true;
 
-        // Yang: TODO: check if their callers are protected
-        FunctionSet func_visited;
-        bool is_caller_protected = true;
-        std::list<Function *> upf_fifo_queue;
-        upf_fifo_queue.push_back(buggy_func);
-
-        int t = 0;
-        while (upf_fifo_queue.size() > 0)
+        CallInstSet buggy_func_guard_cis = get_guard_callsites(buggy_func);
+        if (buggy_func_guard_cis.find(ci) == buggy_func_guard_cis.end())
         {
-          Function *curr_upf = *upf_fifo_queue.begin();
-          upf_fifo_queue.pop_front();
-          
-          // Debug: Explain the call tree as it unfolds
-          errs() << "Check " << curr_upf->getName() << "\n";
-
-          CallInstSet caller_cis = get_caller_callsites(module, curr_upf);
-          
-          // Debug: Explain who are the parents of this function
-          errs() << curr_upf->getName() << " is called on " << caller_cis.size() << " sites\n";
-          for (auto caller_ci : caller_cis){
-            errs() << "\t" << caller_ci->getParent()->getParent()->getName() << "\n";
-          }
-
-          if (caller_cis.size() == 0)
-          {
-
-            if (curr_upf->getName().find("__se_sys_") != StringRef::npos ||
-                curr_upf->getName().find("__se_compat_") != StringRef::npos)
-            {
-              // Debug: explain curr_upf is a known entry point
-              errs() << " __se_sys_ or __se_compat_ included in the name of " << curr_upf->getName() << ". Reporting " << buggy_func->getName() << ".\n";
-              is_caller_protected = false;
-              // errs() << "call begin: " << curr_upf->getName() << "\n";
-              // break;
-            }
-
-            // is_caller_protected = false;
-            // errs() << "call begin: " << curr_upf->getName() << "\n";
-            break;
-          }
-
-          if (t > 2)
-          {
-            // Debug: explain max height has been reached
-            errs() << "Maximum height reached in the call tree. Reporting " << buggy_func->getName() <<".\n";
-            is_caller_protected = false;
-            break;
-          }
-          t += 1;
-
-          CallInstSet upc_set;
-          for (auto caller_ci : caller_cis)
-          {
-            auto caller_func = caller_ci->getParent()->getParent();
-            // Debug: Explain who are the parents of this function
-            errs() << "Check if call site of " << curr_upf->getName() << " in " << caller_func->getName() << " is gated\n";
-            CallInstSet caller_guard_cis = get_guard_callsites(caller_func);
-            if (caller_guard_cis.find(caller_ci) == caller_guard_cis.end())
-            {
-              // Debug: show each unprotected call site for extra information
-              errs() << "Found unprotected call site of " << curr_upf->getName() << " in " << caller_func->getName() << "\n";
-              upc_set.insert(caller_ci);
-            }
-            else
-            {
-              // Debug: Since the end result is going to tell us if the call site is completely unprotected, lets also print the protected call sites
-              errs() << "Found gated call site of " << curr_upf->getName() << " in " << caller_func->getName() << "\n";
-            }
-          }
-
-          for (auto upc : upc_set)
-          {
-            auto ucf = upc->getParent()->getParent();
-            if (func_visited.find(ucf) != func_visited.end())
-            {
-              // Debug: Explain whether we need to recur on ucf or not
-              errs() << ucf->getName() << " has been visited already, skip\n";
-              continue;
-            }
-            // Debug: Explain whether we need to recur on ucf or not
-            errs() << "Add " << ucf->getName() << " to the fifo queue\n";
-            func_visited.insert(curr_upf);
-            upf_fifo_queue.push_back(ucf);
-          }
+          // Debug: Explain we will recursively look at the call tree to see if the callers protect this function
+          errs() << "Found unprotected call site of " << f->getName() << " in " << buggy_func->getName() << "\n";
+          errs() << "Check call tree to see if " << buggy_func->getName() << " is protected.\n";
+          is_protected = check_protected_by_callers(module, buggy_func);
+        }
+        else
+        {
+          // Debug: Explain why buggy_func will not be reported
+          errs() << "Found gated call site of " << f->getName() << " in " << buggy_func->getName() << "\n";
         }
 
-        if (!is_caller_protected)
+        if (!is_protected)
         {
+          errs() << "Reporting " << buggy_func->getName() << ".\n";
           report[buggy_func] = f;
         }
       }

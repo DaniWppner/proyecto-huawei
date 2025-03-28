@@ -103,6 +103,8 @@ private:
   void constraint_analysis(Module &module);
   CallInstSet get_guard_callsites(Function*);
   CallInstSet get_caller_callsites(Module &module, Function* f_def);
+  bool check_protected_by_callers(Module &module, Function *buggy_func);
+
 
   void collect_chkps(Module &);
   void identify_interesting_struct(Module &);
