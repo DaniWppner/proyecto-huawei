@@ -26,6 +26,8 @@ def compare_files(file1: Path, file2: Path) -> None:
         print(f"{file1} has {size_diff} more reports than {file2}")
     elif(size_diff < 0):
         print(f"{file1} has {-size_diff} less reports than {file2}")
+    else:
+        print(f"Both files have {len(file1_reported_funcs)} reports")
 
     print_difference_between(file1, file2, file1_reported_funcs, file2_reported_funcs)
     print_difference_between(file2, file1, file2_reported_funcs, file1_reported_funcs)

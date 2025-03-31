@@ -3479,12 +3479,11 @@ bool achyb::check_protected_by_callers(Module &module, Function *buggy_func)
         errs() << " __se_sys_ or __se_compat_ included in the name of " << curr_upf->getName() << "\n";
         is_caller_protected = false;
         // errs() << "call begin: " << curr_upf->getName() << "\n";
-        // break;
+        break;
       }
 
       // is_caller_protected = false;
       // errs() << "call begin: " << curr_upf->getName() << "\n";
-      break;
     }
 
     if (t > 2)
