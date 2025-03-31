@@ -31,9 +31,9 @@ def compare_files(file1: Path, file2: Path) -> None:
     print_difference_between(file2, file1, file2_reported_funcs, file1_reported_funcs)
 
 def print_difference_between(f1: Path,f2: Path,f1_reports: set[str], f2_reports: set[str]) -> None: 
-    print(f"###\n Reports present in {file1} but not in {file2} are:\n")
-    if (file1_reported_funcs - file2_reported_funcs):
-        print(*file1_reported_funcs)
+    print(f"###\n Reports present in {f1} but not in {f2} are:")
+    if (f1_reports - f2_reports):
+        print(*(f1_reports - f2_reports))
     else:
         print("None")
     print("###")
@@ -41,10 +41,10 @@ def print_difference_between(f1: Path,f2: Path,f1_reports: set[str], f2_reports:
 def get_reported_funcs(file_contents: list[str]) -> list[str]:
     idx = file_contents.index("Results:\n")
     interesting_lines = file_contents[idx+1:]
-    assert all([not(re.match(r".+:.+:.+\n", line)) for line in interesting_lines[-3:]]) , "We have too few extra lines at the end, something went wrong"
-    assert re.match(r".+:.+:.+\n", interesting_lines[-4]), "Fourth to last line does not match r'.+:.+:.+\n', something went wrong "
+    assert all([not(re.match(r".+:.+:.+\n", line)) for line in interesting_lines[-4:]]) , "We have too few extra lines at the end, something went wrong"
+    assert re.match(r".+:.+:.+\n", interesting_lines[-5]), "Fourth to last line does not match r'.+:.+:.+\n', something went wrong "
  
-    return interesting_lines[:-3]
+    return interesting_lines[:-4]
 
 def main():
     parser = argparse.ArgumentParser(description="Compare two log files")
