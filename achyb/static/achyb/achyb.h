@@ -101,6 +101,7 @@ private:
   FunctionSet get_call_tree(CallInst*);
   void rewrite_for_constraints(Module &module);
   void constraint_analysis(Module &module);
+  void find_all_priv_callsites(llvm::Module &module, FunctionData &ps, std::unordered_map<llvm::Function *, llvm::CallInst *> &pv);
   CallInstSet get_guard_callsites(Function*);
   CallInstSet get_caller_callsites(Module &module, Function* f_def);
   bool check_protected_by_callers(Module &module, Function *buggy_func);

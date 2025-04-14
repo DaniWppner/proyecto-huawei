@@ -3538,6 +3538,76 @@ void achyb::constraint_analysis(Module &module)
   std::unordered_map<Function *, int> ps;
   std::unordered_map<Function *, CallInst *> pv;
 
+  find_all_priv_callsites(module, ps, pv);
+
+  errs() << "Functions with call site of privileged function Count: " << ps.size() << "\n";
+  // Step 2: Check that call sites of priviliged function are protected
+  errs() << "Check that call sites of priviliged function are protected\n";
+  uint checked_call_site_cnt = 1;
+  STOP_WATCH_START(WID_CONSTRAINT_ANALYSIS_INTERNAL);
+  std::unordered_map<Function *, Function *> report;
+  for (auto pair : ps)
+  {
+    Function *f = pair.first;
+    int cnt = pair.second;
+    if (cnt >= 1)
+    { // Yang: cnt == 1
+      CallInst *ci = pv[f];
+      Function *buggy_func = ci->getParent()->getParent();
+      // Debug: report current call site of critical function being checked
+      errs() << "(" << checked_call_site_cnt << ") Check call site of " << f->getName() << " in " << buggy_func->getName() << "\n";
+      if (report.find(buggy_func) != report.end())
+      {
+        // Debug: let us know if we do not have to check this call site
+        errs() << buggy_func->getName() << " has already been reported, skip.\n";
+      }
+      else
+      {
+        bool is_protected = true;
+
+        CallInstSet buggy_func_guard_cis = get_guard_callsites(buggy_func);
+        if (buggy_func_guard_cis.find(ci) == buggy_func_guard_cis.end())
+        {
+          // Debug: Explain we will recursively look at the call tree to see if the callers protect this function
+          errs() << "Found unprotected call site of " << f->getName() << " in " << buggy_func->getName() << "\n";
+          errs() << "Check call tree to see if " << buggy_func->getName() << " is protected.\n";
+          is_protected = check_protected_by_callers(module, buggy_func);
+        }
+        else
+        {
+          // Debug: Explain why buggy_func will not be reported
+          errs() << "Found gated call site of " << f->getName() << " in " << buggy_func->getName() << "\n";
+        }
+
+        if (!is_protected)
+        {
+          errs() << "Reporting " << buggy_func->getName() << ".\n";
+          report[buggy_func] = f;
+        }
+      }
+      // Debug
+      errs() << "(" << checked_call_site_cnt << ") end.\n";
+      checked_call_site_cnt++;
+    }
+  }
+  STOP_WATCH_STOP(WID_CONSTRAINT_ANALYSIS_INTERNAL);
+  STOP_WATCH_REPORT(WID_CONSTRAINT_ANALYSIS_INTERNAL)
+
+  errs() << "Results:\n";
+  for (auto pair : report)
+  {
+    auto buggy_func = pair.first;
+    auto f = pair.second;
+
+    auto evidence_ci = critical_evidences[f];
+    errs() << buggy_func->getName() << ":" << f->getName() << ":" << evidence_ci->getParent()->getParent()->getName() << "\n";
+  }
+
+  errs() << "total_cnt=" << report.size() << "\n";
+}
+
+void achyb::find_all_priv_callsites(llvm::Module &module, FunctionData &ps, std::unordered_map<llvm::Function *, llvm::CallInst *> &pv)
+{
   for (Module::iterator mi = module.begin(); mi != module.end(); ++mi)
   {
     Function *f = dyn_cast<Function>(mi);
@@ -3622,71 +3692,6 @@ void achyb::constraint_analysis(Module &module)
     }
     // errs() << f->getName() << " ended\n";
   }
-
-  errs() << "Functions with call site of privileged function Count: " << ps.size() << "\n";
-  // Step 2: Check that call sites of priviliged function are protected
-  errs() << "Check that call sites of priviliged function are protected\n";
-  uint checked_call_site_cnt = 1;
-  STOP_WATCH_START(WID_CONSTRAINT_ANALYSIS_INTERNAL);
-  std::unordered_map<Function *, Function *> report;
-  for (auto pair : ps)
-  {
-    Function *f = pair.first;
-    int cnt = pair.second;
-    if (cnt >= 1)
-    { // Yang: cnt == 1
-      CallInst *ci = pv[f];
-      Function *buggy_func = ci->getParent()->getParent();
-      // Debug: report current call site of critical function being checked
-      errs() << "(" << checked_call_site_cnt << ") Check call site of " << f->getName() << " in " << buggy_func->getName() << "\n";
-      if (report.find(buggy_func) != report.end())
-      {
-        // Debug: let us know if we do not have to check this call site
-        errs() << buggy_func->getName() << " has already been reported, skip.\n";
-      }
-      else
-      {
-        bool is_protected = true;
-
-        CallInstSet buggy_func_guard_cis = get_guard_callsites(buggy_func);
-        if (buggy_func_guard_cis.find(ci) == buggy_func_guard_cis.end())
-        {
-          // Debug: Explain we will recursively look at the call tree to see if the callers protect this function
-          errs() << "Found unprotected call site of " << f->getName() << " in " << buggy_func->getName() << "\n";
-          errs() << "Check call tree to see if " << buggy_func->getName() << " is protected.\n";
-          is_protected = check_protected_by_callers(module, buggy_func);
-        }
-        else
-        {
-          // Debug: Explain why buggy_func will not be reported
-          errs() << "Found gated call site of " << f->getName() << " in " << buggy_func->getName() << "\n";
-        }
-
-        if (!is_protected)
-        {
-          errs() << "Reporting " << buggy_func->getName() << ".\n";
-          report[buggy_func] = f;
-        }
-      }
-      // Debug
-      errs() << "(" << checked_call_site_cnt << ") end.\n";
-      checked_call_site_cnt++;
-    }
-  }
-  STOP_WATCH_STOP(WID_CONSTRAINT_ANALYSIS_INTERNAL);
-  STOP_WATCH_REPORT(WID_CONSTRAINT_ANALYSIS_INTERNAL)
-
-  errs() << "Results:\n";
-  for (auto pair : report)
-  {
-    auto buggy_func = pair.first;
-    auto f = pair.second;
-
-    auto evidence_ci = critical_evidences[f];
-    errs() << buggy_func->getName() << ":" << f->getName() << ":" << evidence_ci->getParent()->getParent()->getName() << "\n";
-  }
-
-  errs() << "total_cnt=" << report.size() << "\n";
 }
 
 bool achyb::runOnModule(Module &module)
