@@ -3,6 +3,8 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+      args:
+        - LLVM_BUILD_JOBS=6
     command: "/bin/bash"
     stdin_open: true # docker run -i
     tty: true # docker run -t

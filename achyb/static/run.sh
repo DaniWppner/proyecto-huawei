@@ -1,4 +1,4 @@
-opt-9 \
+opt \
     -analyze \
     -load=build/achyb/libachyb.so \
     -achyb \
@@ -6,7 +6,7 @@ opt-9 \
     linux/vmlinux.bc \
     -o /dev/null 2>&1 | tee cap.log
 
-opt-9 \
+opt \
     -analyze \
     -load=build/achyb/libachyb.so \
     -achyb \
@@ -14,7 +14,7 @@ opt-9 \
     linux/vmlinux.bc \
     -o /dev/null 2>&1 | tee lsm.log
 
-opt-9 \
+opt \
     -analyze \
     -load=build/achyb/libachyb.so \
     -achyb \

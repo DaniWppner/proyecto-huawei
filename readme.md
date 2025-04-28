@@ -15,10 +15,13 @@ docker compose build
 docker compose up -d 
 docker exec -it CONTAINERID bash
 ```
+If this is the first time building the container, building it will probably take a lot of time (a couple of hours).
+You should edit the `LLVM_BUILD_JOBS` variable in `docker-compose.yml` if 6 cpus doesn't fit your hardware.
 
 3. Compile the kernel with wllvm (Whole-program llvm)
 ```bash
 (inside the docker container)
+cp achyb/static/kconfig/myallyes_defconfig linux/arch/x86/configs/myallyes_defconfig
 cd linux
 export LLVM_COMPILER=clang
 export JOBS=8
